@@ -1,0 +1,86 @@
+steps:
+# --- Test each service (fails fast, nothing gets built if tests fail) ---
+- name: python
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      cd catalog_dummy
+      pip install -r requirements.txt -r requirements-dev.txt --user
+      python -m pytest
+
+- name: python
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      cd cart_dummy
+      pip install -r requirements.txt -r requirements-dev.txt --user
+      python -m pytest
+
+- name: python
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      cd recommendation
+      pip install -r requirements.txt -r requirements-dev.txt --user
+      python -m pytest
+
+# --- Build images ---
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/catalog-dummy:${_TAG}', './catalog_dummy']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/cart-dummy:${_TAG}', './cart_dummy']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['build', '-t', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/recommendation:${_TAG}', './recommendation']
+
+# --- Push images ---
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/catalog-dummy:${_TAG}']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/cart-dummy:${_TAG}']
+- name: 'gcr.io/cloud-builders/docker'
+  args: ['push', '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/recommendation:${_TAG}']
+
+# --- Deploy dummies, capture URLs ---
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      gcloud run deploy catalog-dummy \
+        --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/catalog-dummy:${_TAG} \
+        --region ${_REGION} --platform managed --allow-unauthenticated --port 8080
+
+      gcloud run deploy cart-dummy \
+        --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/cart-dummy:${_TAG} \
+        --region ${_REGION} --platform managed --allow-unauthenticated --port 8080
+
+      gcloud run services describe catalog-dummy --region ${_REGION} \
+        --format='value(status.url)' > /workspace/catalog_url.txt
+      gcloud run services describe cart-dummy --region ${_REGION} \
+        --format='value(status.url)' > /workspace/cart_url.txt
+
+# --- Deploy recommendation, wired to dummy URLs ---
+- name: 'gcr.io/google.com/cloudsdktool/cloud-sdk:slim'
+  entrypoint: bash
+  args:
+    - -c
+    - |
+      CATALOG_URL=$$(cat /workspace/catalog_url.txt)
+      CART_URL=$$(cat /workspace/cart_url.txt)
+      gcloud run deploy recommendation \
+        --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/recommendation:${_TAG} \
+        --region ${_REGION} --platform managed --allow-unauthenticated --port 8080 \
+        --set-env-vars CART_SERVICE_URL=$$CART_URL,CATALOG_SERVICE_URL=$$CATALOG_URL
+
+images:
+- '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/catalog-dummy:${_TAG}'
+- '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/cart-dummy:${_TAG}'
+- '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/recommendation:${_TAG}'
+
+substitutions:
+  _REGION: us-central1
+  _REPO: ecommerce-repo
+  _TAG: manual

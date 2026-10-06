@@ -1,0 +1,24 @@
+services:
+  catalog:
+    build: ./catalog_dummy
+    environment:
+      - PORT=8080
+    ports:
+      - "8082:8080"
+  cart:
+    build: ./cart_dummy
+    environment:
+      - PORT=8080
+    ports:
+      - "8081:8080"
+  recommendation:
+    build: ./recommendation
+    environment:
+      - PORT=8080
+      - CART_SERVICE_URL=http://cart:8080
+      - CATALOG_SERVICE_URL=http://catalog:8080
+    ports:
+      - "8080:8080"
+    depends_on:
+      - cart
+      - catalog
