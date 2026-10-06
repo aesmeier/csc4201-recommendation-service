@@ -84,3 +84,6 @@ substitutions:
   _REGION: us-central1
   _REPO: ecommerce-repo
   _TAG: manual
+
+options:
+  logging: CLOUD_LOGGING_ONLY
