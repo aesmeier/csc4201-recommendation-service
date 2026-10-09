@@ -6,8 +6,8 @@ from flask import Flask, jsonify
 app = Flask(__name__)
 logging.basicConfig(level=logging.INFO)
 
-CART_SERVICE_URL = os.environ.get("CART_SERVICE_URL", "http://localhost:8081")
-CATALOG_SERVICE_URL = os.environ.get("CATALOG_SERVICE_URL", "http://localhost:8082")
+CART_SERVICE_URL = os.environ.get("CART_SERVICE_URL", "https://cart-service-887823769496.us-central1.run.app")
+CATALOG_SERVICE_URL = os.environ.get("CATALOG_SERVICE_URL", "https://catalog-dummy-puujfj4w6q-uc.a.run.app")
 
 
 def get_cart(user_id):
@@ -25,15 +25,19 @@ def get_catalog():
 def build_recommendations(cart_items, catalog, limit=5):
     """Recommend products sharing a category with what's already in the cart,
     excluding items already in the cart. Falls back to the first N catalog
-    items if nothing scores above zero (e.g. empty cart)."""
-    cart_ids = {item["product_id"] for item in cart_items}
+    items if nothing scores above zero (e.g. empty cart).
+
+    product_id is normalized to str on both sides, since Cart returns it as
+    an int while Catalog returns it as a string.
+    """
+    cart_ids = {str(item["product_id"]) for item in cart_items}
 
     cart_categories = set()
     for product in catalog:
-        if product["product_id"] in cart_ids:
+        if str(product["product_id"]) in cart_ids:
             cart_categories.update(product.get("categories", []))
 
-    candidates = [p for p in catalog if p["product_id"] not in cart_ids]
+    candidates = [p for p in catalog if str(p["product_id"]) not in cart_ids]
 
     def score(product):
         return len(set(product.get("categories", [])) & cart_categories)
@@ -45,8 +49,19 @@ def build_recommendations(cart_items, catalog, limit=5):
 @app.route("/recommendations/<user_id>")
 def recommendations(user_id):
     app.logger.info("GET /recommendations/%s", user_id)
-    cart_items = get_cart(user_id)
-    catalog = get_catalog()
+
+    try:
+        cart_items = get_cart(user_id)
+    except requests.RequestException as e:
+        app.logger.error("Cart service error: %s", e)
+        return jsonify({"error": "cart service unavailable"}), 502
+
+    try:
+        catalog = get_catalog()
+    except requests.RequestException as e:
+        app.logger.error("Catalog service error: %s", e)
+        return jsonify({"error": "catalog service unavailable"}), 502
+
     recs = build_recommendations(cart_items, catalog)
     return jsonify(recs)
 
