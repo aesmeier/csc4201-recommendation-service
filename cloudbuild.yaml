@@ -26,7 +26,7 @@ steps:
       gcloud run deploy recommendation \
         --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/recommendation:${_TAG} \
         --region ${_REGION} --platform managed --allow-unauthenticated --port 8080 \
-        --set-env-vars CART_SERVICE_URL=${_CART_URL},CATALOG_SERVICE_URL=${_CATALOG_URL}
+        --set-env-vars CART_SERVICE_URL=${_CART_URL},CATALOG_SERVICE_URL=${_CATALOG_URL},CORS_URL=${_CORS_URL}
 
 images:
 - '${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/recommendation:${_TAG}'
@@ -37,6 +37,7 @@ substitutions:
   _TAG: manual
   _CART_URL: https://cart-service-887823769496.us-central1.run.app
   _CATALOG_URL: https://catalog-dummy-puujfj4w6q-uc.a.run.app
+  _CORS_URL: https://frontend-service-887823769496.us-central1.run.app
 
 options:
   logging: CLOUD_LOGGING_ONLY

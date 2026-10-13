@@ -2,8 +2,14 @@ import os
 import logging
 import requests
 from flask import Flask, jsonify
+from flask_cors import CORS
+
 
 app = Flask(__name__)
+CORS(app, origins=[
+    os.environ.get('CORS_LOCALHOST', 'http://localhost:5173'),
+    os.environ.get('CORS_URL', 'https://frontend-service-887823769496.us-central1.run.app')
+])
 logging.basicConfig(level=logging.INFO)
 
 CART_SERVICE_URL = os.environ.get("CART_SERVICE_URL", "https://cart-service-887823769496.us-central1.run.app")
