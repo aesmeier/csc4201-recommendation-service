@@ -26,6 +26,7 @@ steps:
       gcloud run deploy recommendation \
         --image ${_REGION}-docker.pkg.dev/$PROJECT_ID/${_REPO}/recommendation:${_TAG} \
         --region ${_REGION} --platform managed --allow-unauthenticated --port 8080 \
+        --service-account=logging-writer@project-mirco.iam.gserviceaccount.com \
         --set-env-vars CART_SERVICE_URL=${_CART_URL},CATALOG_SERVICE_URL=${_CATALOG_URL},CORS_URL=${_CORS_URL}
 
 images:

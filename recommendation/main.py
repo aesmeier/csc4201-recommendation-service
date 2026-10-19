@@ -1,9 +1,9 @@
 import os
 import logging
 import requests
-from flask import Flask, jsonify
+from flask import Flask, jsonify, request
 from flask_cors import CORS
-
+from logging_helper import log_event
 
 app = Flask(__name__)
 CORS(app, origins=[
@@ -16,26 +16,27 @@ CART_SERVICE_URL = os.environ.get("CART_SERVICE_URL", "https://cart-service-8878
 CATALOG_SERVICE_URL = os.environ.get("CATALOG_SERVICE_URL", "https://catalog-dummy-puujfj4w6q-uc.a.run.app")
 
 
-def get_cart(user_id):
-    resp = requests.get(f"{CART_SERVICE_URL}/cart/{user_id}", timeout=5)
+def get_cart(user_id, corr_id):
+    resp = requests.get(
+        f"{CART_SERVICE_URL}/cart/{user_id}",
+        headers={"Correlation-Id": corr_id},
+        timeout=5,
+    )
     resp.raise_for_status()
     return resp.json()
 
 
-def get_catalog():
-    resp = requests.get(f"{CATALOG_SERVICE_URL}/products", timeout=5)
+def get_catalog(corr_id):
+    resp = requests.get(
+        f"{CATALOG_SERVICE_URL}/products",
+        headers={"Correlation-Id": corr_id},
+        timeout=5,
+    )
     resp.raise_for_status()
     return resp.json()
 
 
 def build_recommendations(cart_items, catalog, limit=5):
-    """Recommend products sharing a category with what's already in the cart,
-    excluding items already in the cart. Falls back to the first N catalog
-    items if nothing scores above zero (e.g. empty cart).
-
-    product_id is normalized to str on both sides, since Cart returns it as
-    an int while Catalog returns it as a string.
-    """
     cart_ids = {str(item["product_id"]) for item in cart_items}
 
     cart_categories = set()
@@ -54,21 +55,23 @@ def build_recommendations(cart_items, catalog, limit=5):
 
 @app.route("/recommendations/<user_id>")
 def recommendations(user_id):
-    app.logger.info("GET /recommendations/%s", user_id)
+    corr_id = request.headers.get("Correlation-Id", "none")
+    log_event(app.logger, f"GET /recommendations/{user_id}")
 
     try:
-        cart_items = get_cart(user_id)
+        cart_items = get_cart(user_id, corr_id)
     except requests.RequestException as e:
-        app.logger.error("Cart service error: %s", e)
+        log_event(app.logger, f"Cart service error: {e}")
         return jsonify({"error": "cart service unavailable"}), 502
 
     try:
-        catalog = get_catalog()
+        catalog = get_catalog(corr_id)
     except requests.RequestException as e:
-        app.logger.error("Catalog service error: %s", e)
+        log_event(app.logger, f"Catalog service error: {e}")
         return jsonify({"error": "catalog service unavailable"}), 502
 
     recs = build_recommendations(cart_items, catalog)
+    log_event(app.logger, f"returning {len(recs)} recommendations")
     return jsonify(recs)
 
 
