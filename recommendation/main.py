@@ -20,7 +20,7 @@ def get_cart(user_id, corr_id):
     resp = requests.get(
         f"{CART_SERVICE_URL}/cart/{user_id}",
         headers={"Correlation-Id": corr_id},
-        timeout=5,
+        timeout=15,
     )
     resp.raise_for_status()
     return resp.json()
@@ -30,7 +30,7 @@ def get_catalog(corr_id):
     resp = requests.get(
         f"{CATALOG_SERVICE_URL}/products",
         headers={"Correlation-Id": corr_id},
-        timeout=5,
+        timeout=15,
     )
     resp.raise_for_status()
     return resp.json()
